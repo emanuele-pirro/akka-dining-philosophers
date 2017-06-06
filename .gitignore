@@ -1,0 +1,15 @@
+# SBT
+target
+
+# IDE
+*.sc
+.idea
+.DS_Store
+
+# Akka Persistence
+journal
+snapshots
+
+# Log files
+*.log
+logs
