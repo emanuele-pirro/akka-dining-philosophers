@@ -1,34 +1,28 @@
 package dinner
 
 import Boot.Invite
-
-import akka.actor.{Actor, ActorRef, Props}
-
+import akka.actor.{Actor, ActorLogging, Props}
 import dinner.Philosopher.Think
 
-class Table extends Actor {
+class Table extends Actor with ActorLogging {
 
-  var forks: Array[ActorRef] = Array.ofDim[ActorRef](5)
+    override def receive: Receive = {
 
-  override def receive: Receive = {
+        case Invite =>
+            log.debug("Inviting Philosophers.")
 
-    case Invite =>
+            // create forks and philosophers
+            val forks = (0 to 4).map(i => context.actorOf(Props[Fork], s"fork_$i"))
+            Stream.continually(forks).flatten.sliding(2, 1).map {
+                case (l #:: r #:: _) => l -> r
+            }.take(5).toList.foreach(f => {
+                // every philosopher will have his own forks refs assigned
+                val i = f._1.path.name.last
+                context.actorOf(Philosopher(f._1, f._2), name = s"philosopher_$i")
+            })
 
-      // create the forks
-      for (i <- 0 to 4) {
-        forks(i) = context.actorOf(Props[Fork], name = s"fork$i")
-      }
+            // select only the philosophers and make them think
+            context.children.filter(c => c.path.name.startsWith("p")).foreach(p => p ! Think)
 
-      //create the philosophers and assign their forks
-      for (i <- 0 to 4) {
-        val forkLeft = forks(i)
-        val forkRight = forks((i+1)%5)
-        context.actorOf(Philosopher(forkLeft, forkRight), name = s"philosopher$i")
-      }
-
-      // select only the philosophers and make them think
-      context.children.filter(c => c.path.name.startsWith("p"))
-        .foreach(p => p ! Think)
-
-  }
+    }
 }

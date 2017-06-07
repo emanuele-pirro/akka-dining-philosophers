@@ -1,30 +1,41 @@
 package dinner
 
-import akka.actor.{Actor, ActorRef}
-import dinner.Fork.{Release, Use}
+import akka.actor.{Actor, ActorLogging, ActorRef}
+import dinner.Fork.{ForkNotAvailable, ForkTaken, Release, Use}
 
 object Fork {
-  case object Use
-  case object Release
+    case class Use(side: Int)
+    case object Release
+
+    case class ForkTaken(side: Int)
+    case class ForkNotAvailable(side: Int)
 }
 
-class Fork extends Actor {
+class Fork extends Actor with ActorLogging {
 
-  private val name = self.path.name
-  var usedBy : Option[ActorRef] = None
+    private val name = self.path.name
+    var owner : Option[ActorRef] = None
 
-  override def preStart(): Unit = {
-    super.preStart()
-    println(s"[$name] created")
-  }
+    override def preStart(): Unit = {
+        super.preStart()
+        log.debug(s"[$name] created")
+    }
 
-  override def receive: Receive = {
-    case Use =>
-      if (usedBy.isEmpty)
-        usedBy = Some(sender)
-    case Release =>
-      if (usedBy.exists(p => p.equals(p)))
-        usedBy = None
-  }
+    override def receive: Receive = {
+        case u: Use =>
+            val senderName = sender.path.name
+            log.debug(s"[$name] trying to be used by $senderName")
+            if (owner isEmpty) {
+                owner = Some(sender)
+                sender ! ForkTaken(u.side)
+            } else {
+                sender ! ForkNotAvailable(u.side)
+            }
+        case Release =>
+            val senderName = sender.path.name
+            log.debug(s"[$name] being released by $senderName")
+            if (owner.exists(p => p.equals(sender)))
+                owner = None
+    }
 
 }
